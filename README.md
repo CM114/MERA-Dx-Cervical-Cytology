@@ -4,7 +4,7 @@ Research code and selected reproducibility materials for the MERA-Dx project on 
 
 MERA-Dx explores whether cervical cytology classification can be made more interpretable by separating morphology-related and evidence-related factors, while preserving a direct five-class diagnostic output. The project includes factorized diagnosis experiments, dual-space semantic geometry analysis, and risk-aware decision-support studies around a Swin-Tiny baseline.
 
-This repository is being prepared in support of a paper submission to IEEE BIBM 2026 Workshop #4, *Machine Learning for Biological and Medical Image Big Data (ML4BMI)*. It organizes project-related experiment code, configurations, evaluation protocols, selected aggregate results, and documentation. The materials are intended to make the development analyses easier to inspect and reproduce; they should not be interpreted as a clinical system or as a substitute for independent validation.
+This repository organizes the project-related experiment code, configurations, evaluation protocols, selected aggregate results, and documentation. The materials are intended to make the development analyses easier to inspect and reproduce; they should not be interpreted as a clinical system or as a substitute for independent validation.
 
 ## Project scope
 
@@ -14,7 +14,7 @@ The current project snapshot includes selected components for:
 - MERA-Dx factorized diagnosis stages and ablation experiments;
 - dual-space semantic geometry and factor-level diagnostics;
 - risk, calibration, and selective-review analyses; and
-- paper-related tables, figure source data, data-preparation utilities, and audit scripts.
+- study tables, figure source data, data-preparation utilities, and audit scripts.
 
 The reported XUData TBS5 analyses are development-stage image/crop-level results from a fixed five-fold protocol. They are not intended to establish patient-level, slide-level, external-validation, or clinical-deployment performance.
 
@@ -46,7 +46,7 @@ Full training and evaluation may require additional hardware, dataset access, an
 
 ## Project status
 
-This repository represents a development snapshot of the MERA-Dx project and may be revised alongside the manuscript. Scientific claims should be interpreted together with the documented limitations and the final paper version.
+This repository represents a development snapshot of the MERA-Dx research project and may evolve as the analyses are refined. Scientific claims should be interpreted together with the documented limitations and the underlying experimental evidence.
 
 ## Availability and citation
 

@@ -6,9 +6,7 @@
     "experiments/**/*.py",
     "scripts/*.py",
     "configs/*.json",
-    "tests/**/*.py",
-    "paper_inspect_MERA_Dx/*.tex",
-    "paper_inspect_MERA_Dx/*.bib"
+    "tests/**/*.py"
   ],
   "exclude": [
     "**/__pycache__/**",

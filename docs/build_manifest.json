@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "file_count": 551,
+  "file_count": 550,
   "files": [
     {
       "path": ".gitignore",
@@ -135,7 +135,7 @@
     {
       "path": "docs/validation_report.json",
       "bytes": 204,
-      "sha256": "d57cbb93ca8890040f3cef231ec21291ca17b4f600e00a47be226c45fb7fff05"
+      "sha256": "df488a8bb5db6833e926bdf6e9c695ce0d08dd9241638b6945e0d4d08599dfcd"
     },
     {
       "path": "environment.yml",
@@ -1428,19 +1428,14 @@
       "sha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
     },
     {
-      "path": "paper_inspect_MERA_Dx/Morphology_Evidence_Factorized_Diagnosis_with_Dual_Space_Semantic_Geometry_and_Risk_Aware_Decision_Support_for_Cervical_Cytology.tex",
-      "bytes": 52216,
-      "sha256": "0f145fa17538eeb63f2d958c1faf9b9295e2989e95cd25c3a2f933d82516af02"
-    },
-    {
       "path": "README.md",
       "bytes": 2676,
       "sha256": "d5b761182990fca5f0de9872325c3cccddd0dc57d7134afa82310a63898d970d"
     },
     {
       "path": "release_manifest.json",
-      "bytes": 1228,
-      "sha256": "0ec8265c5be182356b1010efc121692d9bf1c387233a5b5119a93ff75a7dd75b"
+      "bytes": 1158,
+      "sha256": "b5a3159cce489cd042c1da060ad77ccfd5420f2693c5f25295c7b86a51b47989"
     },
     {
       "path": "results/figures_source_data/fig3_c1_paired_improvement_source_data.csv",

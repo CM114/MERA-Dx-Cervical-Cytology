@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import hashlib
 import json
 import shutil
@@ -21,18 +20,6 @@ FORBIDDEN_SUFFIXES = {
     ".gz",
     ".zip",
 }
-
-
-def _matches(relative_path: PurePosixPath, pattern: str) -> bool:
-    value = relative_path.as_posix()
-    candidates = {pattern.replace("\\", "/")}
-    if "**/" in pattern:
-        candidates.add(pattern.replace("**/", ""))
-    return any(
-        PurePosixPath(value).match(candidate)
-        or fnmatch.fnmatchcase(value, candidate)
-        for candidate in candidates
-    )
 
 
 def _sha256(path: Path) -> str:
@@ -54,18 +41,26 @@ def build_release(source_root: Path, destination: Path, manifest_path: Path) -> 
     destination.mkdir(parents=True, exist_ok=True)
     copied: list[Path] = []
     records: list[dict[str, object]] = []
+    include_paths = {
+        path
+        for pattern in include_patterns
+        for path in source_root.glob(pattern)
+        if path.is_file()
+    }
+    exclude_paths = {
+        path
+        for pattern in exclude_patterns
+        for path in source_root.glob(pattern)
+        if path.is_file()
+    }
 
-    for source_path in source_root.rglob("*"):
-        if not source_path.is_file() or source_path.is_symlink():
+    for source_path in sorted(include_paths):
+        if source_path.is_symlink() or source_path in exclude_paths:
             continue
         resolved = source_path.resolve()
         if resolved == destination or destination in resolved.parents:
             continue
         relative = PurePosixPath(source_path.relative_to(source_root).as_posix())
-        if not any(_matches(relative, pattern) for pattern in include_patterns):
-            continue
-        if any(_matches(relative, pattern) for pattern in exclude_patterns):
-            continue
         if source_path.suffix.lower() in FORBIDDEN_SUFFIXES:
             continue
         target = destination / Path(relative.as_posix())

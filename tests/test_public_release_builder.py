@@ -15,8 +15,10 @@ class PublicReleaseBuilderTests(unittest.TestCase):
             (source / "experiments").mkdir(parents=True)
             (source / "tests").mkdir(parents=True)
             (source / "weights").mkdir(parents=True)
+            (source / "archive" / "experiments").mkdir(parents=True)
             (source / "experiments" / "train.py").write_text("print('ok')\n", encoding="utf-8")
             (source / "tests" / "test_train.py").write_text("pass\n", encoding="utf-8")
+            (source / "archive" / "experiments" / "old.py").write_text("print('old')\n", encoding="utf-8")
             (source / "weights" / "model.pt").write_bytes(b"weights")
             manifest = root / "release_manifest.json"
             manifest.write_text(
@@ -37,6 +39,7 @@ class PublicReleaseBuilderTests(unittest.TestCase):
             )
             self.assertTrue((destination / "docs" / "build_manifest.json").is_file())
             self.assertFalse((destination / "weights" / "model.pt").exists())
+            self.assertFalse((destination / "archive").exists())
 
 
 if __name__ == "__main__":

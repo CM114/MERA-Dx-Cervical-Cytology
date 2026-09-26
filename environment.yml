@@ -1,0 +1,16 @@
+name: mera-dx-cervical-cytology
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - numpy
+      - pandas
+      - scipy
+      - scikit-learn
+      - pillow
+      - matplotlib
+      - seaborn
+      - pyyaml
+      - tqdm

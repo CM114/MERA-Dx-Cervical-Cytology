@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "MERA-Dx-Cervical-Cytology"
+message: "If you use this code or the released aggregate results, please cite the associated paper and this repository."
+type: software
+authors:
+  - family-names: Xu
+    given-names: Wenjun
+version: "0.1.0"
+date-released: "2026-09-27"
+abstract: "Reproducibility code and sanitized aggregate source data for morphology-evidence factorized diagnosis in cervical cytology."
+license: Apache-2.0

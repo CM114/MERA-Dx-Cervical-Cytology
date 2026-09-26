@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "repository": "MERA-Dx-Cervical-Cytology",
+  "source_root_is_passed_at_runtime": true,
+  "include": [
+    "experiments/*.py",
+    "scripts/*.py",
+    "configs/*.json",
+    "tests/**/*.py",
+    "paper_inspect_MERA_Dx/*.tex",
+    "paper_inspect_MERA_Dx/*.bib"
+  ],
+  "exclude": [
+    "**/__pycache__/**",
+    "**/*.pt",
+    "**/*.pth",
+    "**/*.ckpt",
+    "**/*.safetensors",
+    "**/*.npy",
+    "**/*.npz",
+    "**/*.tar",
+    "**/*.tar.gz",
+    "**/*.zip",
+    "xudata/**",
+    "CRIC_Cervix_full/**",
+    "csv_files/**",
+    "csv_files_clean_v2/**",
+    "cache/**",
+    "results/**"
+  ],
+  "result_sources": [
+    "results/tbs5/backbone_benchmark_v1/summary.csv",
+    "results/tbs5/backbone_benchmark_v1/fold_metrics.csv",
+    "results/tbs5/backbone_benchmark_v1/comparison_table.csv",
+    "results/xudata_target_metrics_v1/xudata_target_metrics_summary.csv",
+    "results/xudata_target_metrics_v1/xudata_target_metrics_folds.csv",
+    "results/xudata_extended_metrics/extended_metrics_summary.csv",
+    "results/xudata_extended_metrics/extended_metrics_folds.csv",
+    "results/paper_figures/fig3_c1_paired_improvement/fig3_c1_paired_improvement_source_data.csv"
+  ]
+}

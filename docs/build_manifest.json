@@ -135,7 +135,7 @@
     {
       "path": "docs/validation_report.json",
       "bytes": 204,
-      "sha256": "df488a8bb5db6833e926bdf6e9c695ce0d08dd9241638b6945e0d4d08599dfcd"
+      "sha256": "269976adb764b005a2c78d55bdaf553d69cb6ea75c15f96dca0ffad073063a22"
     },
     {
       "path": "environment.yml",
@@ -1429,8 +1429,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 2676,
-      "sha256": "d5b761182990fca5f0de9872325c3cccddd0dc57d7134afa82310a63898d970d"
+      "bytes": 3894,
+      "sha256": "f28904a8afac8b9da043cd5f8161104309572f7ed02e48e610922aaaf689bc85"
     },
     {
       "path": "release_manifest.json",

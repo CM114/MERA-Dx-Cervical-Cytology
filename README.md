@@ -37,6 +37,8 @@ The XUData TBS5 results are development-stage image/crop-level results from a fi
 
 Code Availability and Data Availability are documented separately in `docs/data_availability.md`. The repository is public, but public visibility does not imply redistribution rights for the underlying medical images.
 
+Public repository: <https://github.com/CM114/MERA-Dx-Cervical-Cytology>
+
 ## Citation
 
 See `CITATION.cff` for the repository citation metadata.

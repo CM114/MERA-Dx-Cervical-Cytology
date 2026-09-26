@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "file_count": 550,
+  "file_count": 551,
   "files": [
     {
       "path": ".gitignore",
@@ -9,8 +9,8 @@
     },
     {
       "path": "CITATION.cff",
-      "bytes": 445,
-      "sha256": "9a8f6033c4f600cef16838535ab3d9879b24d2c1efc93a863c61be07e931c633"
+      "bytes": 515,
+      "sha256": "6499ed9ecac65f6e2677eeb861869c67bd96558140aa0285aa12cabd22ccac66"
     },
     {
       "path": "configs/m0_fiveclass.json",
@@ -118,6 +118,11 @@
       "sha256": "93ad1e7e7314f1302808b25054bdb8b0d71a3b6bac7d73f926e2e9d8784652e8"
     },
     {
+      "path": "docs/mentor_message_zh.md",
+      "bytes": 498,
+      "sha256": "94a23afde5e2c1f11ed35de49ad03ba9d0203ad99da14c63f0bc0f069d8d0f4b"
+    },
+    {
       "path": "docs/reproducibility.md",
       "bytes": 2036,
       "sha256": "243fef7cf9dd5d1c3147876b68b7fed103952af54634368bdd88db767345e4ce"
@@ -130,7 +135,7 @@
     {
       "path": "docs/validation_report.json",
       "bytes": 204,
-      "sha256": "09c4f39f5e28afb96c6a79efbf78fbcc4dc1b6d6ff2d81835d2d01d54555d503"
+      "sha256": "d57cbb93ca8890040f3cef231ec21291ca17b4f600e00a47be226c45fb7fff05"
     },
     {
       "path": "environment.yml",
@@ -1429,8 +1434,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 2603,
-      "sha256": "14ef4357fb07d52075d7646e87d6443c414712b4417de228cba27516980b63d5"
+      "bytes": 2676,
+      "sha256": "d5b761182990fca5f0de9872325c3cccddd0dc57d7134afa82310a63898d970d"
     },
     {
       "path": "release_manifest.json",

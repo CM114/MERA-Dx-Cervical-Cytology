@@ -7,10 +7,14 @@ dependencies:
   - pip:
       - numpy
       - pandas
-      - scipy
-      - scikit-learn
-      - pillow
-      - matplotlib
-      - seaborn
-      - pyyaml
-      - tqdm
+        - scipy
+        - scikit-learn
+        - torch
+        - torchvision
+        - timm
+        - pillow
+        - matplotlib
+        - seaborn
+        - pyyaml
+        - openpyxl
+        - tqdm

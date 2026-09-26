@@ -30,6 +30,36 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def write_build_manifest(destination: Path) -> dict[str, object]:
+    """Refresh the relative-path hash manifest for an existing release tree."""
+
+    destination = destination.resolve()
+    records: list[dict[str, object]] = []
+    for path in sorted(destination.rglob("*")):
+        relative_path = path.relative_to(destination)
+        if (
+            not path.is_file()
+            or ".git" in relative_path.parts
+            or "__pycache__" in relative_path.parts
+            or path.suffix.lower() == ".pyc"
+        ):
+            continue
+        if relative_path.as_posix() == "docs/build_manifest.json":
+            continue
+        records.append(
+            {
+                "path": relative_path.as_posix(),
+                "bytes": path.stat().st_size,
+                "sha256": _sha256(path),
+            }
+        )
+    report = {"schema_version": 1, "file_count": len(records), "files": records}
+    manifest_output = destination / "docs" / "build_manifest.json"
+    manifest_output.parent.mkdir(parents=True, exist_ok=True)
+    manifest_output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
 def build_release(source_root: Path, destination: Path, manifest_path: Path) -> list[Path]:
     """Copy manifest-selected files and write a relative-path hash manifest."""
 
@@ -75,20 +105,7 @@ def build_release(source_root: Path, destination: Path, manifest_path: Path) -> 
             }
         )
 
-    manifest_output = destination / "docs" / "build_manifest.json"
-    manifest_output.parent.mkdir(parents=True, exist_ok=True)
-    manifest_output.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "file_count": len(records),
-                "files": records,
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    write_build_manifest(destination)
     return copied
 
 

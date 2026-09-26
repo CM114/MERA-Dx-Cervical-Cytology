@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.build_public_release import build_release
+from tools.build_public_release import build_release, write_build_manifest
 
 
 class PublicReleaseBuilderTests(unittest.TestCase):
@@ -39,6 +39,10 @@ class PublicReleaseBuilderTests(unittest.TestCase):
             )
             self.assertTrue((destination / "docs" / "build_manifest.json").is_file())
             self.assertFalse((destination / "weights" / "model.pt").exists())
+
+            (destination / "experiments" / "train.py").write_text("print('changed')\n", encoding="utf-8")
+            refreshed = write_build_manifest(destination)
+            self.assertEqual(refreshed["file_count"], 2)
             self.assertFalse((destination / "archive").exists())
 
 

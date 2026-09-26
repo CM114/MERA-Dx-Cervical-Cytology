@@ -1,0 +1,870 @@
+% IEEE BIBM-style conference manuscript draft.
+% Main-paper target: IEEE two-column format, maximum eight pages including references.
+% Revision v3, staged rewrite: this file currently contains the title and the
+% rewritten abstract only. Remaining sections are carried over one at a time from
+% the previous version (..._Risk_Controlled_Prediction_...tex).
+% Main-paper figure assets are stored under figures/.
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{placeins}
+\setlength{\emergencystretch}{2em}
+
+% Compact float spacing for the two-column layout. These settings reduce
+% whitespace around later figures without changing the manuscript text.
+\setlength{\abovecaptionskip}{2pt}
+\setlength{\belowcaptionskip}{0pt}
+\setlength{\textfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\floatsep}{3pt plus 1pt minus 1pt}
+\setlength{\dbltextfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\dblfloatsep}{3pt plus 1pt minus 1pt}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\newcommand{\placeholderfigure}[1]{%
+  \fbox{\parbox[c][1.18in][c]{0.94\columnwidth}{\centering\footnotesize #1}}}
+\newcommand{\placeholderfigurewide}[1]{%
+  \fbox{\parbox[c][1.32in][c]{0.94\textwidth}{\centering\footnotesize #1}}}
+
+\begin{document}
+
+\title{Morphology-Evidence Factorized Diagnosis with Dual-Space Semantic Geometry and Risk-Aware Decision Support for Cervical Cytology}
+
+\author{\IEEEauthorblockN{Wenjun Xu}}
+
+\maketitle
+
+\begin{abstract}
+Errors in cervical cytology carry unequal risk: a high-grade lesion called
+low-grade is a missed precursor, whereas ASC-US versus LSIL disagreement
+reflects routine interpretive variation. A flat five-class classifier reports
+uncertainty but not risk type, limiting differentiated review policies. This is
+a representational constraint rather than an accuracy deficit, and higher
+accuracy alone does not remove it. The Bethesda System defines atypical squamous
+cell categories by insufficient evidence for definitive interpretation and
+separates them by grade, implicitly factoring the four abnormal categories onto
+a grade-related morphology axis and an evidence-definitiveness axis. We present
+MERA-Dx (Morphology--Evidence Factorized and Risk-Aware Diagnostic Network),
+which recovers these axes without additional annotation. A Swin-Tiny model is
+trained with a direct five-class head and factor-specific supervision, fusing
+beliefs only on the abnormal conditional distribution to preserve
+Normal/Abnormal mass exactly. The frozen representation is then mapped into
+separate morphology and evidence spaces with multi-prototype factor states.
+Finally, a modular risk layer consumes frozen outputs to provide
+screening-conflict detection, a factor--decision discordance sentinel, and
+class-conditional pairwise prediction sets. In five-fold development evaluation,
+the two axes separate as predicted: the evidence axis, only partially observable
+from a single cell, shows a geometry gap of 0.5184 versus 1.2627 for morphology,
+with factor accuracy near 0.76 versus 0.90. The sentinel refers 94.70\% of
+hidden high-grade cases at a pre-specified operating point with 18.09\% routed
+to safety-critical abstention within a 43.41\% review rate, and pairwise sets
+reach approximately 95\% coverage. Both later layers leave the diagnosis
+untouched, with zero parameter drift and zero prediction changes. Under matched
+30-epoch training, Macro-F1 improves from 0.7675 to 0.7752. These are
+development results; the risk layer is exploratory, and no external confirmation
+cohort was available. The contribution is a factorization that turns an existing
+taxonomy into an auditable basis for separating safety-critical from routine
+uncertainty.
+\end{abstract}
+
+\begin{IEEEkeywords}
+cervical cytology, Bethesda system, morphology-evidence factorization,
+semantic geometry, prototype learning, conformal prediction,
+clinical decision support, MERA-Dx
+\end{IEEEkeywords}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/graphical_abstract.png}
+    \caption{Conceptual overview. A flat five-class output can report that a case is uncertain but not which kind of uncertainty it carries. Reading the Bethesda System's own category definitions directly recovers a grade-related axis and an evidence-definitiveness axis, exposing a query a flat decision cannot pose and giving a basis for risk-differentiated review.}
+    \label{fig:graphical_abstract}
+\end{figure}
+
+\section{Introduction}
+
+Cervical cytology screening assigns every case to one of five Bethesda
+System categories \cite{nayar2015bethesda}, and the clinical cost of an
+error depends heavily on which two categories are confused. A high-grade lesion reported as
+low-grade is a missed precursor that can delay treatment, while a
+disagreement between two closely related atypical categories is closer
+to ordinary interpretive variation and rarely changes clinical
+management. A decision support system deployed into this workflow
+inherits this asymmetry: it must not only be accurate, it must fail in
+a way that a reviewing clinician can triage.
+
+Automated classification of cervical cytology has largely been framed
+as a single flat multi-class problem, where a backbone network outputs
+one of the five category labels directly and progress is reported
+through overall accuracy or macro-averaged F1. Uncertainty in this
+framing is typically summarized by a single confidence or entropy score
+attached to the predicted label, which answers whether the network is
+unsure but not what kind of error it might be making. A flat classifier
+has no internal variable that separates a grade-related mistake from an
+evidence-related one, so no risk-differentiated review policy, one that
+routes high-grade misses to urgent recheck and routine disagreements to
+lower-priority audit, can be built on top of it. Increasing accuracy
+narrows how often this ambiguity arises without changing what the
+output can express, so the limitation is representational rather than a
+shortfall to be closed by a better backbone or more data.
+
+This gap is avoidable rather than fundamental, because the structure a
+flat output discards is already present in the taxonomy it is trained
+on. The Bethesda System defines the atypical squamous cell categories
+by changes that are insufficient for a definitive interpretation, and
+it separates them by the grade under consideration \cite{nayar2015bethesda}. Read directly,
+these two criteria form two axes rather than one flat list, a
+grade-related axis and an evidence-definitiveness axis, and the four
+abnormal categories are exactly the four combinations of these axes.
+Recovering this structure needs no additional annotation beyond the
+existing category labels, and it makes expressible a query that a flat
+five-class output cannot pose: whether the direct decision is low-grade
+while the underlying morphology belief remains high-grade, a
+discordance that marks exactly the case a risk-differentiated review
+policy needs to catch first.
+
+We build three layers on this factorization. The first trains a
+diagnostic model with a direct five-class head alongside
+factor-specific supervision, and restricts fusion between the two to
+the abnormal conditional distribution, so the boundary between normal
+and abnormal cases is preserved by construction rather than by
+empirical tuning. The second freezes this diagnostic representation
+and maps it through separate adapters into a morphology space and an
+evidence space, each factor state described by multiple learnable
+prototypes, and treats the resulting separability as something to
+audit rather than to assume. The third consumes only the frozen
+outputs of the first two layers to add screening-conflict detection,
+the discordance sentinel described above, and class-conditional
+pairwise prediction sets, so review routing becomes possible without
+touching the diagnosis itself. Across five-fold development evaluation
+the two axes separate in the direction the underlying clinical
+construct predicts, the sentinel recovers the large majority of hidden
+high-grade cases at a pre-specified operating point, and the
+diagnostic stage matches its unfactorized counterpart under a matched
+training budget, so the added structure carries no cost to the
+decision it is built on top of.
+
+This paper makes the following contributions.
+
+\begin{itemize}
+\item We introduce a factorized diagnostic stage that recodes the four
+abnormal Bethesda categories onto a grade-related axis and an
+evidence-definitiveness axis read directly from their existing
+clinical definitions, and that fuses factor and direct beliefs only on
+the abnormal conditional distribution, so the normal-versus-abnormal
+screening boundary is preserved by construction rather than by
+empirical adjustment.
+\item We build separate morphology and evidence semantic spaces over
+the frozen diagnostic representation, each factor state represented by
+multiple learnable prototypes, and we audit the resulting geometry for
+separability and non-collapse rather than assuming it holds.
+\item We design a modular risk layer that reads only frozen outputs
+from the two stages above to provide a factor-decision discordance
+sentinel alongside class-conditional pairwise prediction sets,
+enabling review policies that are differentiated by risk type without
+altering the underlying diagnosis.
+\item We show in five-fold development evaluation that the two
+semantic axes separate in the direction predicted by their differing
+observability, that the discordance sentinel recovers the large
+majority of hidden high-grade cases at a pre-specified operating
+point, and that the factorized diagnostic stage matches its
+unfactorized counterpart under a matched training budget, indicating
+that the added structure comes at no cost to the diagnosis it builds
+on.
+\end{itemize}
+
+These contributions are embodied in MERA-Dx (Morphology--Evidence Factorized and Risk-Aware Diagnostic Network), which preserves a standard five-class diagnostic output while exposing the factor structure that underlies it and routing risk-differentiated review without touching that output.
+
+\section{Related Work}
+\label{sec:related}
+\subsection{Deep Learning for Cervical Cytology Classification}
+\label{sec:rw_backbone}
+Early cervical cytology classification relied on hand-crafted morphometric descriptors, nuclear shape and texture statistics passed to conventional classifiers, and was evaluated on benchmark collections such as the Pap-smear corpus and SIPaKMeD \cite{jantzen2005pap,plissiti2018sipakmed}. Deep representation learning replaced this feature engineering, and the field has since tracked general image recognition closely. Residual and densely connected convolutional networks established the first strong baselines \cite{he2016deep,huang2017densenet}, compound scaling improved the accuracy-to-cost tradeoff \cite{tan2019efficientnet}, and ConvNeXt modernized the convolutional design under a transformer-era training recipe \cite{liu2022convnext}. Vision transformers then introduced global attention over image patches \cite{dosovitsky2021vit}, hierarchical variants such as Swin and MaxViT restored the multi-scale locality that fine-grained cytology depends on \cite{liu2021swin,tu2022maxvit}, and MetaFormer-style analyses indicated that much of the gain follows from the macro architecture rather than the specific token-mixing operator \cite{yu2022metaformer}.
+
+Progress along this line is reported almost exclusively as flat five-class accuracy or macro-averaged F1. Because the label set is consumed as an unordered list of five alternatives, every confusion contributes equally to the reported score, and the trained model retains no internal quantity that separates a grade-related error from an evidence-related one. Stronger backbones reduce how often such confusions occur without changing what the output is able to report about them. Our factorized diagnostic stage addresses this by recoding the four abnormal categories onto two axes taken from their existing clinical definitions, so that grade and evidence beliefs are exposed separately while the direct five-class pathway remains intact. We hold the backbone fixed to Swin-Tiny across every stage of this work so that the reported differences are attributable to this factorization rather than to a change of architecture.
+
+\subsection{Structured Supervision and Label Semantics}
+\label{sec:rw_multitask}
+Introducing auxiliary targets to shape a shared representation is a long-established strategy. Multi-task learning treats related objectives as mutual regularizers \cite{caruana1997multitask}, and uncertainty-based weighting balances heterogeneous losses without manual tuning of their relative scales \cite{kendall2018multitask}. In medical imaging this typically takes the form of an additional annotation layer, for instance a segmentation mask, a lesion attribute, or a secondary grading scheme, collected alongside the primary diagnostic label.
+
+Such designs improve representation quality but shift the cost to annotation, and the auxiliary target is external to the diagnostic taxonomy rather than derived from it. Consequently, any structure the auxiliary head learns is not guaranteed to correspond to a distinction the clinical reporting standard actually makes. Our factor targets differ in kind: they are deterministic recodings of the existing five-class label, requiring no additional annotation, so a gain from them can only come from re-exposing structure already implicit in the taxonomy. This also fixes the semantics of each axis in advance, which is what later allows a disagreement between the factor beliefs and the direct decision to be read as a specific and clinically meaningful event.
+
+\subsection{Prototype and Metric Learning for Semantic Structure}
+\label{sec:rw_prototype}
+Metric and prototype methods organize a representation by distance rather than by a linear decision boundary. Prototypical networks summarize each class as a single embedding centroid and classify by proximity \cite{snell2017prototypical}, triplet objectives shape the embedding geometry directly through relative distance constraints \cite{schroff2015facenet}, and supervised contrastive learning extends this to full label supervision with many positives per anchor \cite{khosla2020supervised}. The appeal in a medical setting is that the resulting geometry is inspectable: nearest neighbours of a prototype can be shown to a reader.
+
+These methods, however, typically build a single embedding space shared by all classes and then use it to classify. Two consequences follow. A single space forces one geometry to serve several distinctions at once, so it cannot be asked whether one specific factor is separable independently of another; and because the prototypes drive prediction, any weakness in the geometry propagates directly into diagnostic error. Our semantic stage separates these concerns. We build two factor-specific spaces through independent adapters over a frozen diagnostic representation, each factor state carried by multiple prototypes, and we treat separability as a quantity to audit rather than a mechanism to classify with. Because the diagnosis is frozen, a weak axis is reported as a weak axis instead of degrading the decision.
+
+\subsection{Uncertainty Quantification and Selective Prediction}
+\label{sec:rw_uncertainty}
+Deciding when not to answer is a separate problem from deciding what to answer. Selective prediction formalizes an abstention option for an otherwise fixed classifier and characterizes the resulting risk-coverage tradeoff \cite{geifman2017selective}, and later work integrates the reject option into training so that the coverage target is optimized jointly with the decision rule \cite{geifman2019selectivenet}. Conformal prediction instead returns a set rather than a single label, with finite-sample coverage guarantees that require only exchangeability rather than a correctly specified model \cite{vovk2005algorithmic,angelopoulos2023conformal}. For classification, set-valued predictors can be constructed to minimize ambiguity at a bounded error level \cite{sadinle2019least}, and adaptive variants improve conditional coverage on hard instances \cite{romano2020classification}. Mondrian conformal prediction restricts calibration to a predefined taxonomy of the sample space \cite{vovk2003mondrian}, and the class-conditional case permits a coverage statement about a specific pair of confusable categories rather than a marginal statement across all classes.
+
+What these methods share is that they operate on a scalar ordering of the model's own confidence. An abstention rule fires when confidence falls below a threshold, and a conformal set widens when no label dominates, but neither construction can distinguish the reason for the ambiguity, since both consume the same flat posterior that produced it. In a setting where one confusion is a missed precursor and another is routine interpretive variation, a single coverage or abstention budget therefore spends the same review effort on both. Our risk layer keeps these guarantees but separates the routes. Class-conditional sets are calibrated within each adjacent pair, while a distinct sentinel monitors disagreement between the grade-related factor belief and the direct decision, a signal that exists only because the two are estimated separately. Both read frozen outputs, so neither revises the diagnostic label they annotate.
+
+\section{Method}
+\label{sec:method}
+
+MERA-Dx consists of three stages. The first (Sections~\ref{sec:task}--\ref{sec:factorized}) trains a factorized diagnostic model with a direct five-class head alongside morphology and evidence factor heads, fusing their beliefs only on the abnormal conditional distribution. The second (Section~\ref{sec:semantic}) freezes the diagnostic representation and maps it through separate adapters into factor-specific semantic spaces with multi-prototype structure. The third (Section~\ref{sec:risk}) consumes only frozen outputs to provide screening safety, a factor-decision discordance sentinel, and class-conditional pairwise prediction sets. The three stages are trained sequentially, and the second and third leave the diagnostic output untouched.
+
+\subsection{Grade and Evidence Factor Grid}
+\label{sec:task}
+Let $x$ denote a single-cell image and let $y$ be one of the five Bethesda
+System diagnosis labels. The four abnormal labels are deterministically
+mapped onto two factors,
+\begin{equation}
+    m(y)\in\{\mathrm{Low},\mathrm{High}\}, \qquad
+    e(y)\in\{\mathrm{Ambiguous},\mathrm{Definitive}\},
+    \label{eq:factors}
+\end{equation}
+where $m$ is the grade-related morphology factor and $e$ is the
+evidence-definitiveness factor. The mapping follows directly from the
+Bethesda System's own category definitions \cite{nayar2015bethesda},
+\begin{equation}
+\begin{array}{c|cc}
+    & \mathrm{Ambiguous} & \mathrm{Definitive}\\ \hline
+\mathrm{Low} & \mathrm{ASC\!-\!US} & \mathrm{LSIL}\\
+\mathrm{High} & \mathrm{ASC\!-\!H} & \mathrm{HSIL}
+\end{array}
+\label{eq:grid}
+\end{equation}
+Normal samples remain in the direct five-class pathway but are excluded
+from the abnormal factor losses and from the prototype-state updates
+described in Section~\ref{sec:semantic}. The factor labels are
+deterministic transformations of $y$ motivated by diagnostic semantics,
+not additional manual annotations or independently validated biological
+categories.
+
+\subsection{Flat Baseline}
+\label{sec:baseline}
+The flat baseline uses a Swin-Tiny backbone with a single five-class
+linear head trained with cross-entropy loss. Images are resized with
+fixed letterbox preprocessing to $224\times224$ pixels, and we use a
+fixed five-fold development split with seed 42. Content-level duplicate
+exclusion is audited, but patient and slide identifiers are not
+populated in the supplied manifest, so patient or slide group
+disjointness is not claimed. The flat baseline serves only as the
+direct diagnostic reference; it is not treated as a semantic or
+risk-control module.
+
+\subsection{Morphology-Evidence Factorized Diagnosis}
+\label{sec:factorized}
+Given backbone features $h=f_{\theta}(x)$, the direct head produces
+five-class logits $z_d$. Two factor projectors produce normalized
+semantic features,
+\begin{equation}
+    z_m=A_m(h), \qquad z_e=A_e(h),
+    \label{eq:factorproject}
+\end{equation}
+feeding two-class morphology and evidence heads. The factor losses
+provide structured supervision to the shared representation while the
+direct five-class loss remains active throughout training.
+
+For the four abnormal classes, the morphology and evidence logits are
+combined through a checkerboard interaction term. With $i\in\{0,1\}$
+denoting the Low/High morphology state and $j\in\{0,1\}$ denoting the
+Ambiguous/Definitive evidence state, the joint abnormal logit is
+\begin{equation}
+    \ell_{ij}=\ell^m_i+\ell^e_j+\eta\,s_{ij}, \qquad
+    s=\begin{bmatrix}+1&-1\\-1&+1\end{bmatrix}.
+    \label{eq:interaction}
+\end{equation}
+The scalar interaction $\eta$ is produced from the factor features,
+bounded by a hyperbolic tangent, and initialized at zero. This
+checkerboard parameterization removes the common-shift degree of
+freedom and isolates a single interaction contrast across the four
+abnormal combinations, since a common shift applied to all four logits
+cancels under softmax while the checkerboard term changes their
+relative combination.
+
+The final fusion acts only on the abnormal conditional distribution.
+Let $p_0$ denote the Normal probability from the direct head,
+$p_A=1-p_0$ the abnormal mass, $q_d$ the direct abnormal conditional
+distribution, and $q_T$ the factorized distribution from
+Eq.~\eqref{eq:interaction}. The fused conditional distribution is a
+geometric interpolation,
+\begin{equation}
+    q_f=\operatorname{softmax}\left((1-\alpha)\log q_d+\alpha\log q_T\right),
+    \qquad 0<\alpha<0.30,
+    \label{eq:fusion}
+\end{equation}
+and the final five-class probabilities are $p_f=[p_0,\, p_Aq_f]$. The
+Normal/Abnormal mass is therefore preserved exactly by construction,
+not by empirical tuning. We audit the abnormal-row sum, the
+screening-mass error, the interaction magnitude, and $\alpha$ in every
+fold.
+
+\subsection{Dual-Space Semantic Geometry}
+\label{sec:semantic}
+The factorized diagnosis stage above is then frozen in its entirety,
+including its direct probabilities and factor heads. The frozen
+feature $h$ is mapped into two separate factor-specific spaces,
+\begin{equation}
+    u_m=\operatorname{norm}(g_m(h)), \qquad
+    u_e=\operatorname{norm}(g_e(h)),
+    \label{eq:spaces}
+\end{equation}
+where $g_m$ and $g_e$ are separate adapters, one per factor. Each
+factor state is represented by two learnable prototypes rather than a
+single point, leaving room for within-state variation. For factor
+$r\in\{m,e\}$ and state $s\in\{0,1\}$, the state score is a
+temperature-scaled log-sum-exp over its two prototypes,
+\begin{equation}
+    a^r_s(u_r)=\tau\log\sum_{k=1}^{2}
+    \exp\left(\frac{\operatorname{cos}(u_r,p^r_{s,k})}{\tau}\right),
+    \qquad \tau=0.20.
+    \label{eq:prototype}
+\end{equation}
+We do not claim that the two prototypes assigned to a state correspond
+to two distinct biological phenotypes; the second prototype is present
+to absorb within-state variation, not to name a subtype. A secondary
+compositional readout can combine morphology and evidence state scores
+into a five-class posterior, but this readout is never fused back into
+the diagnosis. This stage therefore answers a representation question
+rather than a diagnostic one: do the two factor-specific spaces carry
+stable positive separation and non-collapsed prototypes across folds,
+independent of the classifier that produced the frozen features.
+
+We report the fold-level morphology and evidence geometry gaps
+together with their bootstrap uncertainty intervals, factor-specific
+linear-probe contrasts, prototype non-collapse, and confirmation that
+the frozen diagnosis is unmodified by this stage. For a factor $r$,
+the geometry gap is the mean cosine similarity of pairs sharing state
+$r$ minus the mean cosine similarity of pairs differing in state $r$
+while sharing the other factor, computed over the two abnormal-class
+pairings that isolate that factor. Each term samples at most 50,000
+pairs and obtains a 95\% percentile interval from 2,000 bootstrap
+resamples of the sampled similarities. The factor-specificity
+contrasts are $D_m=A_{m\to m}-A_{m\to e}$ and
+$D_e=A_{e\to e}-A_{e\to m}$, where $A_{r\to t}$ is three-fold
+cross-validated linear-probe accuracy for target factor $t$ read from
+space $r$. The primary evidence at this stage is the geometric
+organization itself, not the accuracy of the secondary prototype
+readout.
+
+\subsection{Modular Risk Layer}
+\label{sec:risk}
+This layer consumes only frozen outputs from the factorized diagnosis
+stage above. It does not require the semantic-geometry readout, does
+not train a new diagnostic classifier, and does not change the frozen
+top-one label, probabilities, logits, or parameters. Its output
+augments the frozen diagnosis with a prediction set, screening and
+high-grade probabilities, uncertainty fields, risk flags, a review
+priority, an abstention decision, and a reason code.
+
+\textbf{Screening safety.} This component applies the two-state
+Normal/Abnormal distribution induced by the frozen direct
+probabilities. With the class-conditional nonconformity score
+$1-q_y$, a binary prediction set is calibrated at nominal coverage
+$\gamma_{\mathrm{scr}}=0.90$ on the inner calibration pool. A
+screening-boundary flag is raised when the set contains a state
+opposing the frozen top-one prediction; the development gate requires
+screening coverage of at least 0.90 and a raw abnormal-to-normal
+error rate of at most 0.01. Calibration and evaluation rows are
+disjoint within each fold.
+
+\textbf{Factor-decision discordance sentinel.} Among direct
+predictions outside the high-grade pair, this sentinel identifies
+cases where the direct decision is low-grade but the factor beliefs
+retain high-grade evidence. The sentinel feature vector is
+\begin{equation}
+    \phi_{\mathrm{HU}}(x)=
+    [p_A,p_H^d,p_H^m,p_{\mathrm{Def}}^e,\Delta_H,M_{\mathrm{severity}},H_d,\eta],
+    \label{eq:sentinel_features}
+\end{equation}
+and its sentinel score is
+\begin{equation}
+    r_{\mathrm{HU}}(x)=\sigma(w^\top\phi_{\mathrm{HU}}(x)+b).
+    \label{eq:sentinel_score}
+\end{equation}
+Here $p_d$ denotes the five-class probability vector from the frozen
+direct head. Thus $p_A=1-p_d(\mathrm{Normal})$ and
+$p_H^d=p_d(\mathrm{ASC\!-\!H})+p_d(\mathrm{HSIL})$, while $p_H^m$ is
+the morphology-high probability and $p_{\mathrm{Def}}^e$ is the
+evidence-definitive probability, both read from the factorized
+diagnosis stage. The remaining features are the logit-scale
+disagreement $\Delta_H$, the direct high-versus-low margin
+$M_{\mathrm{severity}}$, the normalized five-class entropy of the
+direct head $H_d$, and the bounded interaction term $\eta$. The
+eight-dimensional vector is standardized and fitted with a
+class-balanced logistic sentinel using cross-fitted development
+predictions, and its operating threshold is fixed by a finite-sample
+95\% positive-score calibration rule. The sentinel raises a
+high-priority review flag while leaving the diagnosis itself
+unchanged. Its target is a hidden high-grade case,
+\begin{equation}
+ y_{\mathrm{HU}}=\mathbf{1}\!\left[y\in\{\mathrm{ASC\!-\!H},\mathrm{HSIL}\}\;\land\;\hat y\notin\{\mathrm{ASC\!-\!H},\mathrm{HSIL}\}\right],
+ \label{eq:hu_target}
+\end{equation}
+namely a case whose true category is high-grade while the direct
+prediction $\hat y$ is not.
+
+\textbf{Class-conditional pairwise sets.} For the low pair
+$L=\{\mathrm{ASC\!-\!US},\mathrm{LSIL}\}$, the conditional probability
+and nonconformity score are
+\begin{equation}
+    q_L(c\mid x)=\frac{p_c(x)}{p_{\mathrm{ASC\!-\!US}}(x)+p_{\mathrm{LSIL}}(x)},
+    \qquad s(x,c)=1-q_L(c\mid x),
+    \label{eq:pair_probability}
+\end{equation}
+and the high pair is defined analogously. For calibration class $c$
+with $n_c$ samples, the nominal calibration target is
+$\gamma_{\mathrm{cal}}=0.95$ with finite-sample rank
+$k_c=\lceil(n_c+1)\gamma_{\mathrm{cal}}\rceil$. The prediction set is
+\begin{equation}
+    \Gamma(x)=\{c:s(x,c)\leq Q_c\},
+    \label{eq:conformal_set}
+\end{equation}
+where $Q_c$ is the class-conditional calibration quantile from the
+outer-training calibration pool,
+\begin{equation}
+ Q_c=\begin{cases}s_{(k_c)},& k_c\le n_c,\\1,& k_c>n_c,\end{cases}
+ \label{eq:pair_quantile}
+\end{equation}
+and the development evaluation gate requires evaluation coverage of at
+least 0.90. If a raw binary set is empty, the implementation includes
+the higher-probability class as a deterministic finite-sample fallback,
+and raw empty sets are counted before this fallback is applied.
+Calibration and evaluation rows are kept disjoint within each fold. A
+genuinely difficult adjacent case therefore receives a two-element set
+rather than an unjustified singleton, which is the intended
+communication behavior rather than a failure to decide. Because no
+untouched externally labeled cohort was available, the evidence from
+this layer is exploratory development evidence. This construction is a
+class-conditional, or Mondrian, conformal predictor restricted to the
+adjacent pair \cite{vovk2003mondrian,sadinle2019least}.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=0.75\textwidth,height=0.55\textheight,keepaspectratio]{figures/overall_framework.png}
+    \caption{Overall framework. A single-cell image is encoded by a shared Swin-Tiny backbone into a direct five-class head and two factor heads that read the grade-related and evidence-definitiveness axes recovered from the Bethesda System's category definitions. The two factor beliefs are combined through a bounded checkerboard interaction and fused with the direct abnormal conditional distribution while leaving Normal and Abnormal mass exactly preserved. The frozen representation is then mapped by separate adapters into a morphology space and an evidence space carrying multiple learnable prototypes per factor state, and a modular risk layer consumes only these frozen outputs to provide screening safety, a factor-decision discordance sentinel, and class-conditional pairwise prediction sets.}
+    \label{fig:framework}
+\end{figure*}
+
+\section{Experimental Protocol}
+\label{sec:protocol}
+
+\subsection{Data Partition and Reproducibility}
+
+\begin{table}[t]
+\caption{Image-level composition of the cleaned XUData TBS5 cohort.
+Counts are single-cell images. The test split was sealed during model
+development.}
+\label{tab:dataset_composition}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{lrrrrrr}
+\toprule
+Split & Normal & ASC-US & LSIL & ASC-H & HSIL & Total \\
+\midrule
+Train        & 1,628 & 1,657 & 1,627 & 1,458 & 1,615 & 7,985 \\
+Development  &   203 &   206 &   204 &   183 &   202 &   998 \\
+Calibration  &   203 &   206 &   203 &   182 &   202 &   996 \\
+Sealed test  &   381 &   389 &   382 &   345 &   380 & 1,877 \\
+\midrule
+All images   & 2,415 & 2,458 & 2,416 & 2,168 & 2,399 & 11,856 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The cleaned XUData TBS5 cohort contains 11,856 single-cell images
+(224 $\times$ 224 $\times$ 3). The training split contains 7,985 images,
+whereas the development, calibration and sealed-test splits contain 998,
+996 and 1,877 images, respectively. The morphology and evidence targets
+are deterministically derived from the five-class diagnosis labels; they
+are model-defined semantic factors rather than independently pathologist-annotated ground truth.
+
+The locked five-fold OOF analysis used a 7,586-image S0-R pool formed
+from the train-fit and select-s0 subsets of the training split.
+Therefore, the 7,586 OOF rows are a downstream evaluation subset of the
+7,985 training images, rather than an additional dataset split. All five
+held-out folds covered the 7,586 S0-R samples exactly once. Patient and
+slide identifiers are not populated in the supplied manifest, and
+filename-derived candidate groups cross split boundaries, so patient or
+slide group-disjointness is not claimed. The
+flat baseline, the factorized diagnosis stage, and the semantic-geometry
+stage use the same image size and letterbox preprocessing. Aggregate
+inventory metadata were available for dataset accounting, but no test
+images, predictions, or sample-level test labels were used during model
+development or evaluation. Reported values are copied from the
+pre-specified result files and fold manifests.
+
+The experiment chain is intentionally staged. The flat baseline records
+the reference. The factorized diagnosis stage is trained with the direct
+five-class loss and factor losses, and epoch-30 checkpoints are retained
+for all folds. The semantic-geometry stage is trained only through
+adapters and prototypes while the factorized diagnosis is frozen. The
+risk layer consumes frozen outputs and fixed calibration artifacts;
+thresholds and epochs are not changed post hoc.
+
+\subsection{Implementation Details}
+\label{sec:implementation}
+The backbone is ImageNet-initialized Swin-Tiny with $224\times224$
+letterbox inputs. MERA-Dx uses batch size 64, AdamW with learning rate
+$10^{-4}$, weight decay $10^{-4}$, automatic mixed precision, and seed 42.
+The factorized diagnosis stage uses $\lambda_m=0.15$, $\lambda_e=0.15$,
+$\lambda_{\mathrm{joint}}=0.10$, and $\lambda_{\eta}=0.01$; its
+interaction dimension is 32 and semantic dimension is 128. The bounded
+fusion uses $\alpha_{\max}=0.30$ and initialization $\alpha_0=0.05$. The
+semantic-geometry stage uses batch size 32, 12 epochs, adapter learning
+rate $5\times10^{-5}$, prototype temperature $0.20$, two prototypes per
+factor state, and a frozen factorized-diagnosis checkpoint. The risk
+layer adds no large image classifier and uses only frozen outputs plus
+fixed calibration artifacts.
+
+The competing methods listed in Table~\ref{tab:backbone_comparison} were
+retrained on XUData TBS5 following their published architectures and training
+recipes, under the same five-fold partition, preprocessing, random seed, and
+five-class label mapping used for MERA-Dx.
+The supplied record does not contain verified acquisition, stain, resolution,
+hardware, or ethics/access metadata; these fields are not asserted in the
+present manuscript and remain a prerequisite for a complete submission.
+
+\subsection{Metrics}
+For diagnosis, we report accuracy, macro-F1, abnormal macro-F1, low-pair
+and high-pair binary macro-F1, and screening sensitivity. Pair metrics
+are computed after renormalizing the corresponding two-class probability
+row. For the semantic-geometry audit, we report the cosine-similarity
+geometry gaps and their deterministic 2,000-resample 95\% percentile
+intervals, factor-specific three-fold linear-probe contrasts, and
+parameter drift. For the risk layer, we report screening coverage,
+high-grade undercall review recall, low and high pair coverage, raw
+empty-set rate, review-priority rates, and the number of prediction
+changes.
+
+\subsection{Evaluation Boundary}
+The flat baseline, factorized diagnosis, and semantic-geometry results
+are five-fold development results. The risk layer is explicitly marked
+exploratory and is not a formal external confirmation. No test images,
+predictions, or sample-level test labels were used in model development
+or evaluation, and no untouched external TBS5 confirmation cohort was
+available.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Comparison on XUData TBS5}
+\label{sec:backbone_comparison}
+Table~\ref{tab:backbone_comparison} compares MERA-Dx against nine published
+cervical cytology classification methods, all retrained and evaluated on the
+XUData TBS5 development cohort under the same five-fold protocol,
+preprocessing, and label mapping. MERA-Dx reaches accuracy 0.7776 and
+macro-F1 0.7752, ahead of the strongest competing method A2SDNet121
+(0.7080 / 0.7068) by 6.96 and 6.84 percentage points respectively. The
+remaining methods fall between 0.5588 and 0.6846 macro-F1, with the
+handcrafted feature-selection pipelines (PCA+GWO, CNN+GA+SVM) trailing the
+end-to-end deep models. No test or external confirmation data were used.
+
+\begin{table*}[!t]
+\centering
+\small
+\caption{Comparison with existing cervical cytology classification methods on
+the XUData TBS5 development cohort. All methods were retrained on XUData
+under the same five-fold protocol, preprocessing, and five-class label
+mapping. Values are means across the five fixed development folds.
+Patient/slide group-disjointness was not verified.}
+\label{tab:backbone_comparison}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccccc@{}}
+\toprule
+\textbf{Method} & \textbf{Acc} & \textbf{Bal-Acc} & \textbf{Macro-Prec} & \textbf{Macro-Rec} & \textbf{Macro-Spec} & \textbf{Macro-F1} & \textbf{Macro-AUC} \\
+\midrule
+HCT-Net         & 0.6268 & 0.6257 & 0.6427 & 0.6257 & 0.9067 & 0.6291 & 0.8945 \\
+LGPNet          & 0.6784 & 0.6767 & 0.6870 & 0.6767 & 0.9196 & 0.6778 & 0.9174 \\
+A2SDNet121      & 0.7080 & 0.7061 & 0.7121 & 0.7061 & 0.9271 & 0.7068 & 0.9276 \\
+DeepCervix-HDFF & 0.6835 & 0.6818 & 0.6916 & 0.6818 & 0.9209 & 0.6820 & 0.9173 \\
+MSCCNet         & 0.6879 & 0.6861 & 0.6907 & 0.6861 & 0.9220 & 0.6846 & 0.9167 \\
+CerCan-Net      & 0.6743 & 0.6724 & 0.6796 & 0.6724 & 0.9186 & 0.6713 & 0.9094 \\
+DIFF            & 0.6524 & 0.6509 & 0.6693 & 0.6509 & 0.9131 & 0.6545 & 0.9064 \\
+PCA+GWO         & 0.5718 & 0.5728 & 0.5658 & 0.5728 & 0.8930 & 0.5588 & 0.8421 \\
+CNN+GA+SVM      & 0.6627 & 0.6616 & 0.6610 & 0.6616 & 0.9156 & 0.6605 & 0.9046 \\
+\midrule
+\textbf{MERA-Dx (ours)} & \textbf{0.7776} & \textbf{0.7758} & \textbf{0.7760} & \textbf{0.7758} & \textbf{0.9445} & \textbf{0.7752} & \textbf{0.9459} \\
+\bottomrule
+\end{tabular*}
+\end{table*}
+
+\subsection{Comparison on the Public Benchmark}
+\label{sec:public_comparison}
+Table~\ref{tab:public_comparison} repeats the comparison on a public cervical
+cytology benchmark under the same five-fold protocol and label mapping.
+MERA-Dx reaches accuracy 0.9539 and macro-F1 0.9533, ahead of the strongest
+competing method DeepCervix-HDFF (0.9489 / 0.9476), with the highest MCC
+(0.9420) and macro-AUROC (0.9960) in the comparison. The ordering of the
+competing methods differs from the XUData result, which is consistent with the
+public benchmark being a substantially easier and more class-balanced
+collection.
+
+\begin{table*}[!t]
+\centering
+\small
+\caption{Comparison with existing cervical cytology classification methods on
+the public benchmark. All methods were retrained under the same five-fold
+protocol, preprocessing, and label mapping. Values are means across the five
+folds.}
+\label{tab:public_comparison}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccc@{}}
+\toprule
+\textbf{Method} & \textbf{Acc} & \textbf{Bal-Acc} & \textbf{Macro-Prec} & \textbf{Macro-Rec} & \textbf{Macro-Spec} & \textbf{Macro-F1} & \textbf{MCC} & \textbf{Macro-AUC} \\
+\midrule
+HCT-Net         & 0.8476 & 0.8489 & 0.8479 & 0.8489 & 0.9620 & 0.8434 & 0.8110 & 0.9746 \\
+LGPNet          & 0.9313 & 0.9309 & 0.9299 & 0.9309 & 0.9829 & 0.9296 & 0.9140 & 0.9909 \\
+A2SDNet121      & 0.8223 & 0.8250 & 0.8228 & 0.8250 & 0.9556 & 0.8177 & 0.7800 & 0.9580 \\
+DeepCervix-HDFF & 0.9489 & 0.9488 & 0.9474 & 0.9488 & 0.9873 & 0.9476 & 0.9360 & 0.9951 \\
+MSCCNet         & 0.9392 & 0.9399 & 0.9376 & 0.9399 & 0.9849 & 0.9379 & 0.9240 & 0.9942 \\
+CerCan-Net      & 0.9321 & 0.9336 & 0.9309 & 0.9336 & 0.9831 & 0.9313 & 0.9150 & 0.9916 \\
+DIFF            & 0.9201 & 0.9204 & 0.9179 & 0.9204 & 0.9801 & 0.9178 & 0.9000 & 0.9851 \\
+PCA+GWO         & 0.9175 & 0.9194 & 0.9147 & 0.9194 & 0.9794 & 0.9152 & 0.8970 & 0.9828 \\
+CNN+GA+SVM      & 0.9266 & 0.9263 & 0.9244 & 0.9263 & 0.9817 & 0.9248 & 0.9080 & 0.9905 \\
+\midrule
+\textbf{MERA-Dx (ours)} & \textbf{0.9539} & \textbf{0.9552} & \textbf{0.9528} & \textbf{0.9552} & \textbf{0.9885} & \textbf{0.9533} & \textbf{0.9420} & \textbf{0.9960} \\
+\bottomrule
+\end{tabular*}
+\end{table*}
+
+\subsection{Diagnostic-Path Comparison}
+\label{sec:path_comparison}
+MERA-Dx's diagnostic stage provides a direct-versus-final path
+comparison; the values are nearly identical. It does not isolate
+individual auxiliary losses.
+
+\begin{table}[!htbp]
+\caption{Diagnostic-path comparison. Y indicates an active component; the
+direct row is evaluated before the final mass-preserving fusion.}
+\label{tab:path}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.3pt}
+\begin{tabular}{lcccccc}
+\toprule
+Variant & M & E & $\eta$ & Fusion & Macro-F1 & Low / High \\
+\midrule
+Flat baseline$^\dagger$ & -- & -- & -- & -- & 0.7576 & 0.7889 / 0.7726 \\
+Factorized direct & Y & Y & Y & -- & 0.7748 & 0.7979 / 0.7953 \\
+Factorized final & Y & Y & Y & Y & 0.7752 & 0.7979 / 0.7953 \\
+\bottomrule
+\end{tabular}
+\vskip 2pt
+{\scriptsize $\dagger$ Historical epoch-12 reference.}
+\end{table}
+
+\subsection{Semantic Geometry Shows Positive Factor-Specific Separation}
+Table~\ref{tab:geometry} reports the primary semantic-geometry result.
+The morphology geometry gap is $1.2627\pm0.0664$ and the evidence gap is
+$0.5184\pm0.0528$. The minimum fold-level lower bounds exported by the
+audit are 1.1735 and 0.4667, respectively, both strictly positive. The
+factor-specificity contrasts are $D_m=0.3625$ and $D_e=0.1694$ on
+average, and all five folds pass the geometry gate. These values are
+descriptive outputs of the five-fold development audit; they should not
+be read as independent biological validation of the recoded factors.
+
+\begin{table}[!htbp]
+\caption{Dual-space semantic geometry audit.}
+\label{tab:geometry}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.0pt}
+\begin{tabular}{lc}
+\toprule
+Audit quantity & Five-fold result \\
+\midrule
+Morphology gap & $1.2627\pm0.0664$ \\
+Evidence gap & $0.5184\pm0.0528$ \\
+Minimum morphology interval lower bound & 1.1735 \\
+Minimum evidence interval lower bound & 0.4667 \\
+$D_m$ & 0.3625 \\
+$D_e$ & 0.1694 \\
+Geometry gate & $5/5$ folds pass \\
+Parameter drift & $0/5$ folds \\
+Prediction changes & $0/5$ folds \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The prototype readout is weaker than the factorized diagnosis
+(Macro-F1 approximately 0.7101), so the semantic-geometry stage is an
+analysis layer rather than a replacement classifier. It organizes the
+frozen representation into factor-specific spaces with positive gaps,
+non-collapsed prototypes, and no diagnostic change.
+
+\subsection{Risk Layer Provides Exploratory Decision Support}
+The risk-layer modules target distinct risks rather than reclassifying
+every sample. As shown in Table~\ref{tab:risk}, screening coverage is
+99.62\% on average, high-grade undercall review recall is 94.70\% with a
+worst-fold value of 93.33\%, and low-pair and high-pair prediction-set
+coverage is 95.10\% and 94.86\%. Across the five folds, 266 high-undercall
+events were identified and 252 were captured by the sentinel review flag.
+The minimum class-conditional pair coverage across ASC-US, LSIL, ASC-H,
+and HSIL was 93.0\%. Here undercall recall is defined over true ASC-H or
+HSIL samples whose frozen top-one prediction is outside the high pair;
+pair coverage is aggregated over the corresponding two-class subsets. The
+raw empty-set rate is zero. Parameter drift and prediction changes are
+both zero, confirming that the safety layer is non-invasive.
+
+\begin{table}[!htbp]
+\caption{Exploratory risk outputs over five folds.}
+\label{tab:risk}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.0pt}
+\begin{tabular}{lc}
+\toprule
+Risk quantity & Mean result \\
+\midrule
+Screening coverage & 99.62\% \\
+High-undercall review recall & 94.70\% \\
+High-undercall events captured & 252/266 \\
+Worst-fold high-undercall recall & 93.33\% \\
+Low-pair coverage & 95.10\% \\
+High-pair coverage & 94.86\% \\
+Minimum class-conditional pair coverage & 93.0\% \\
+Raw abnormal-to-normal top-1 error & 0.28\% \\
+Raw empty-set rate & 0\% \\
+Silent high undercall & 0.48\% \\
+Parameter drift & 0 \\
+Prediction changes & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 43.41\% overall review rate is not a severe-failure rate: the router
+separates safety-critical abstention (18.09\%) from medium-priority
+adjacent ambiguity, while preserving the frozen top-one label.
+
+No matched-review-budget comparison with maximum-softmax, entropy, or
+direct high-grade scores is present in the available result files;
+therefore, the risk layer is not claimed to outperform those baselines.
+
+\section{Discussion and Limitations}
+\label{sec:discussion}
+The results link three levels: the factorized diagnosis improves the
+diagnostic performance while preserving screening mass; the
+semantic-geometry audit yields positive dual-space separation without
+changing the diagnosis; and the risk layer exposes factor discordance and
+conditional prediction sets.
+
+Claims are limited by the development-only five-fold design, absent
+patient and slide identifiers, filename-derived groups crossing splits,
+and unavailable acquisition, preparation, stain, hardware,
+label-adjudication, and IRB or consent metadata. No patient-level
+generalization or independent test performance is claimed. The
+semantic-geometry stage is representation analysis and the risk layer
+exploratory development behavior; screening and undercall quantities are
+cell-level, and factor labels require prospective pathologist validation.
+
+The next scientifically meaningful validation is not another threshold
+search on the current results. It is a preregistered evaluation on a new
+patient or slide group-disjoint TBS5 cohort or a temporal holdout that
+has not been exposed to model development, calibration, smoke tests, or
+model selection. Until that resource is available, the appropriate claim
+is exploratory risk-aware decision support.
+
+\section{Conclusion}
+\label{sec:conclusion}
+We presented a staged framework linking factorized diagnosis, dual-space
+semantic auditing, and risk-aware decision support. The factorized
+diagnosis improves matched-budget performance without changing screening
+mass; the semantic-geometry audit reports factor separation without
+modifying the diagnosis; and the risk layer reports screening,
+high-grade, and adjacent-category risks while preserving the frozen
+diagnosis. Findings remain exploratory pending external confirmation.
+
+\section*{Ethics and Data Availability Note}
+This study uses the XUData TBS5 cohort. The supplied experiment artifacts
+do not contain institution-specific ethics identifiers, patient-consent
+language, or data-access restrictions; accordingly, no unverified ethics
+or consent statement is made here. The reported analyses use development
+out-of-fold rows only; test images, predictions, and sample-level test
+labels were not used. Institution-specific ethics and data-access wording
+must be verified against the approved dataset documentation before
+submission.
+
+\FloatBarrier
+\begin{thebibliography}{00}
+\footnotesize
+\setlength{\itemsep}{0pt}
+\setlength{\parsep}{0pt}
+
+\bibitem{nayar2015bethesda}
+R. Nayar and D. C. Wilbur, Eds., \emph{The Bethesda System for Reporting Cervical Cytology: Definitions, Criteria, and Explanatory Notes}, 3rd ed. Cham, Switzerland: Springer, 2015.
+
+\bibitem{jantzen2005pap}
+J. Jantzen, J. Norup, G. Dounias, and B. Bjerregaard, ``Pap-smear benchmark data for pattern classification,'' in \emph{Proc. Nature Inspired Smart Inf. Syst. (NiSIS)}, 2005, pp. 1--9.
+
+\bibitem{plissiti2018sipakmed}
+M. E. Plissiti, P. Dimitrakopoulos, G. Sfikas, C. Nikou, O. Krikoni, and A. Charchanti, ``SIPaKMeD: A new dataset for feature and image based classification of normal and pathological cervical cells in Pap smear images,'' in \emph{Proc. IEEE Int. Conf. Image Process. (ICIP)}, 2018, pp. 3144--3148.
+
+\bibitem{he2016deep}
+K. He, X. Zhang, S. Ren, and J. Sun, ``Deep residual learning for image recognition,'' in \emph{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2016, pp. 770--778.
+
+\bibitem{huang2017densenet}
+G. Huang, Z. Liu, L. van der Maaten, and K. Q. Weinberger, ``Densely connected convolutional networks,'' in \emph{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2017, pp. 4700--4708.
+
+\bibitem{tan2019efficientnet}
+M. Tan and Q. V. Le, ``EfficientNet: Rethinking model scaling for convolutional neural networks,'' in \emph{Proc. 36th Int. Conf. Mach. Learn. (ICML)}, vol. 97, 2019, pp. 6105--6114.
+
+\bibitem{liu2022convnext}
+Z. Liu, H. Mao, C.-Y. Wu, C. Feichtenhofer, T. Darrell, and S. Xie, ``A ConvNet for the 2020s,'' in \emph{Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2022, pp. 11976--11986.
+
+\bibitem{dosovitsky2021vit}
+A. Dosovitskiy \emph{et al.}, ``An image is worth 16x16 words: Transformers for image recognition at scale,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2021.
+
+\bibitem{liu2021swin}
+Z. Liu, Y. Lin, Y. Cao, H. Hu, Y. Wei, Z. Zhang, S. Lin, and B. Guo, ``Swin Transformer: Hierarchical vision transformer using shifted windows,'' in \emph{Proc. IEEE/CVF Int. Conf. Comput. Vis. (ICCV)}, 2021, pp. 10012--10022.
+
+\bibitem{tu2022maxvit}
+Z. Tu, H. Talebi, H. Zhang, F. Yang, P. Milanfar, A. Bovik, and Y. Li, ``MaxViT: Multi-axis vision transformer,'' in \emph{Proc. Eur. Conf. Comput. Vis. (ECCV)}, 2022, pp. 459--479.
+
+\bibitem{yu2022metaformer}
+W. Yu, C. Si, P. Zhou, M. Luo, Y. Zhou, J. Feng, S. Yan, and X. Wang, ``MetaFormer baselines for vision,'' arXiv preprint arXiv:2210.13452, 2022.
+
+\bibitem{caruana1997multitask}
+R. Caruana, ``Multitask learning,'' \emph{Mach. Learn.}, vol. 28, no. 1, pp. 41--75, 1997.
+
+\bibitem{kendall2018multitask}
+A. Kendall, Y. Gal, and R. Cipolla, ``Multi-task learning using uncertainty to weigh losses for scene geometry and semantics,'' in \emph{Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2018, pp. 7482--7491.
+
+\bibitem{snell2017prototypical}
+J. Snell, K. Swersky, and R. S. Zemel, ``Prototypical networks for few-shot learning,'' in \emph{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol. 30, 2017, pp. 4077--4087.
+
+\bibitem{schroff2015facenet}
+F. Schroff, D. Kalenichenko, and J. Philbin, ``FaceNet: A unified embedding for face recognition and clustering,'' in \emph{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2015, pp. 815--823.
+
+\bibitem{khosla2020supervised}
+P. Khosla, P. Teterwak, C. Wang, A. Sarna, Y. Tian, P. Isola, A. Maschinot, C. Liu, and D. Krishnan, ``Supervised contrastive learning,'' in \emph{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol. 33, 2020, pp. 18661--18673.
+
+\bibitem{geifman2017selective}
+Y. Geifman and R. El-Yaniv, ``Selective classification for deep neural networks,'' in \emph{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol. 30, 2017, pp. 4878--4887.
+
+\bibitem{geifman2019selectivenet}
+Y. Geifman and R. El-Yaniv, ``SelectiveNet: A deep neural network with an integrated reject option,'' in \emph{Proc. 36th Int. Conf. Mach. Learn. (ICML)}, vol. 97, 2019, pp. 2151--2159.
+
+\bibitem{vovk2005algorithmic}
+V. Vovk, A. Gammerman, and G. Shafer, \emph{Algorithmic Learning in a Random World}. New York, NY, USA: Springer, 2005.
+
+\bibitem{vovk2003mondrian}
+V. Vovk, D. Lindsay, I. Nouretdinov, and A. Gammerman, ``Mondrian confidence machine,'' Royal Holloway, Univ. London, Tech. Rep., 2003.
+
+\bibitem{sadinle2019least}
+M. Sadinle, J. Lei, and L. Wasserman, ``Least ambiguous set-valued classifiers with bounded error levels,'' \emph{J. Amer. Statist. Assoc.}, vol. 114, no. 525, pp. 223--234, 2019.
+
+\bibitem{romano2020classification}
+Y. Romano, M. Sesia, and E. J. Cand\`{e}s, ``Classification with valid and adaptive coverage,'' in \emph{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol. 33, 2020, pp. 3581--3591.
+
+\bibitem{angelopoulos2023conformal}
+A. N. Angelopoulos and S. Bates, ``Conformal prediction: A gentle introduction,'' \emph{Found. Trends Mach. Learn.}, vol. 16, no. 4, pp. 494--591, 2023.
+
+\end{thebibliography}
+
+\end{document}

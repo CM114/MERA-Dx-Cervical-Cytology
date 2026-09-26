@@ -1,0 +1,6 @@
+image_path,split,fold,diagnosis_label,diagnosis_name,source_split,source_group
+example/normal_0001.png,train,0,0,Normal,synthetic,example_group_0
+example/ascus_0001.png,dev,0,1,ASC-US,synthetic,example_group_1
+example/lsil_0001.png,calibration,0,2,LSIL,synthetic,example_group_2
+example/asc_h_0001.png,test,0,3,ASC-H,synthetic,example_group_3
+example/hsil_0001.png,train,0,4,HSIL,synthetic,example_group_4

@@ -3,7 +3,7 @@
   "repository": "MERA-Dx-Cervical-Cytology",
   "source_root_is_passed_at_runtime": true,
   "include": [
-    "experiments/*.py",
+    "experiments/**/*.py",
     "scripts/*.py",
     "configs/*.json",
     "tests/**/*.py",
@@ -12,6 +12,7 @@
   ],
   "exclude": [
     "**/__pycache__/**",
+    "**/.pytest_cache/**",
     "**/*.pt",
     "**/*.pth",
     "**/*.ckpt",

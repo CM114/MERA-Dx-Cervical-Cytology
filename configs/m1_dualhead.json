@@ -1,0 +1,18 @@
+{
+  "experiment_name": "m1_caformer_dualhead_seed42",
+  "variant": "m1",
+  "model_name": "caformer_s18",
+  "train_csv": "data/local/csv_files/train_xudata_tbs5.csv",
+  "dev_csv": "data/local/csv_files/dev_xudata_tbs5.csv",
+  "out_dir": "outputs/tbs5/stage1/m1_caformer_dualhead_seed42",
+  "img_size": 224,
+  "epochs": 30,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "weight_decay": 0.0001,
+  "num_workers": 8,
+  "seed": 42,
+  "lambda_screen": 0.3,
+  "pretrained": true,
+  "amp": true
+}
